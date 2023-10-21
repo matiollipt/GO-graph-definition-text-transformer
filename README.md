@@ -2,6 +2,8 @@
 
 This repository demonstrates the use of text definitions of GO terms to **fine-tune** a pre-trained **Large Language Model (LLM)** based on the [transformer architecture](https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)). The **goal** is to leverage this LLM to categorize GO term definitions based on their alignment with the major GO ontologies (BP, CC, and MF).
 
+teste
+
 
 In addition to utilizing GO term definitions as a "toy" dataset for practicing fine-tuning LLMs, the underlying objective of this exercise is to **extract hidden dependencies among the highly-curated annotated definitions of GO terms**. One potential application for the model is classifying molecular biology texts based on their emphasis on one or another GO aspect.
 
