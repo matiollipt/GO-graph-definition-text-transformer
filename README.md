@@ -557,6 +557,7 @@ lr_scheduler = get_scheduler(
     optimizer=optimizer,
     num_warmup_steps=0,
     num_training_steps=num_training_steps,
+)
 ```
 
 ### Training Loop
@@ -759,6 +760,7 @@ probs_sample_results = probs_sample.map(lambda x: "{:.2%}".format(x)).sort_value
 )
 
 # save results
+home_dir.joinpath("output/").mkdir(parents=True, exist_ok=True)
 probs_df.to_excel(home_dir.joinpath("output/results.xls"), index=False)
 
 # visualize results
