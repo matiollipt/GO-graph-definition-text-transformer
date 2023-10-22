@@ -1,16 +1,18 @@
-# Predicting Gene Ontology (GO) Aspects with Fine-Tuned Text Transformers
+# Fine-Tuning Text Transformers with Gene Ontology Annotations: A Case Study
 
-This repository demonstrates the use of text definitions of GO terms to **fine-tune** a pre-trained **Large Language Model (LLM)** based on the [transformer architecture](https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)). The **goal** is to leverage this LLM to categorize GO term definitions based on their alignment with the major GO ontologies (BP, CC, and MF).
+This repository demonstrates the use of text definitions of Gene Ontology (GO) terms to fine-tune a pre-trained Large Language Model (LLM), specifically Bidirectional Encoder Representations from Transformers (BERT), based on the transformer architecture. The goal of this exercise is to leverage the LLM to categorize GO term definitions based on their alignment with the major GO ontologies: *Biological Process*, *Cellular Component*, and *Molecular Function*.
 
-In addition to utilizing GO term definitions as a "toy" dataset for practicing fine-tuning LLMs, the underlying objective of this exercise is to **extract hidden dependencies among the highly-curated annotated definitions of GO terms**. One potential application for the model is classifying molecular biology texts based on their emphasis on one or another GO aspect.
+In addition to utilizing GO term definitions as a "toy" dataset for practicing fine-tuning LLMs, this exercise aims to extract hidden dependencies among manually annotated GO term definitions. One potential application for the model is classifying molecular biology texts based on their emphasis on specific GO aspects.
 
-## Cloning the repository
+For further details about BERT, you can refer to the [official documentation](https://huggingface.co/docs/transformers/model_doc/bert).
+
+## Clone Repository
 
 ```shell
 (base)$ git clone https://github.com/matiollipt/GO-graph-definition-text-transformer.git
 ```
 
-## Configuring the Conda Environment
+## Configure Conda Environment
 
 - Creating the environment
 
@@ -40,7 +42,7 @@ In addition to utilizing GO term definitions as a "toy" dataset for practicing f
   </p>
 </figure>
 
-The transformer architecture can be adapted and trained envisaging more specific applications, such as the [ProteinBERT](https://doi.org/10.1093/bioinformatics/btac020). ProteinBERT builds on top of the efficient transformer architecture, being trained over 106 millions of protein sequences from [UniProt](https://www.uniprot.org/) to capture protein semantics. The pre-trained model can be then fine-tuned to classify proteins into families, identify phylogenetic relationships, predict protein function and subcellular localization, protein-protein interactions, and much more...
+The transformer architecture can be adapted and trained for more specific applications, such as [ProteinBERT](https://doi.org/10.1093/bioinformatics/btac020). ProteinBERT builds upon the efficient transformer architecture and is trained on over 106 million protein sequences from [UniProt](https://www.uniprot.org/) to capture protein semantics. The pre-trained model can then be fine-tuned to classify proteins into families, identify phylogenetic relationships, predict protein function and subcellular localization, and anticipate protein-protein interactions, among other interesting applications for protein embeddings.
 
 ## Automating Discovery In Life Sciences
 
@@ -52,7 +54,7 @@ For example, the [Critical Assessment of Protein Function Annotation (CAFA)](htt
 
 The Gene Ontology is represented as a **directed acyclic graph (DAG**) where **each node represents a specific GO term**. Each GO term defines a particular aspect of genes and their products. 
 
-The GO terms are organized into three main categories:
+The GO terms are organized into **three main aspects**:
 
 - <font color="grey">***Molecular Function (MF)***</font>: These terms define the **activities** performed by gene products, such as *catalysis* or *transport*. These functions can be further refined by more specific GO terms, for example, "protein kinase activity" within the broader category of "catalysis".
 
@@ -62,7 +64,7 @@ The GO terms are organized into three main categories:
 
 The relationships between these terms are **hierarchical**, with **parent-child relationships** indicating broader and more specific terms, respectively. This hierarchical structure allows researchers to **annotate genes and gene products**, providing valuable information about their functions and roles in biological processes. For more information about how the GO graph is structured, please refer to my previous post [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA) and the [Gene Ontology reference](https://geneontology.org/docs/ontology-documentation). For now, it is essential to know that **each node representing a GO term has specific attributes**.
 
-## Extracting GO terms definitions: a glimpse on life mechanisms
+## Extracting GO terms definitions
 
 A feature often overlooked when deploying the GO graph to assist in the prediction and classification of gene functions is the **textual definition of each GO term**. For example, the GO term ID [GO:0015986](https://www.ebi.ac.uk/QuickGO/term/GO:0015986) is defined as *"The transport of protons across the plasma membrane to generate an electrochemical gradient (proton-motive force) that powers ATP synthesis."*, along with other attributes shown below:
 
@@ -78,23 +80,17 @@ A feature often overlooked when deploying the GO graph to assist in the predicti
  ---
 The nodes contain attributes describing the corresponding GO terms, and these are the essential ones that appear in every node:
 
- >***name***: unique identifier of the term in a human-readable format
+- ***name***: unique identifier of the term in a human-readable format
+- ***namespace***: one of the three major ontologies (MF, CC or BP) to which the term belongs
+- ***definition***: a short description of what the GO term means for humans. It can also contains references to publications defining the term (e.g. PMID:10873824).
 
->***namespace***: one of the three major ontologies (MF, CC or BP) to which the term belongs
+In this exercise, we use the GO terms' definitions to fine-tune a LLM as a text classifier of GO aspects.
 
->***definition***: a short description of what the GO term means for humans. It can also contains references to publications defining the term (e.g. PMID:10873824).
-
-There are additional attributes of each node corresponding to GO terms, but we won't be using them in this project.
-
-## Exercise
-
-In this first simple exercise, we will use the text definitions of GO terms to **fine-tune** a pre-trained Large Language Model (LLMs) based on the [transformer architecture](https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)). The **goal** is to leverage this LLM to **categorize GO term definitions** based on their alignment with the major GO ontologies (BP, CC, and MF).
-
->**Fine-tuning** is a powerful technique in machine learning that involves using models that have undergone **semi-supervised training** on extensive data from various sources. This process imparts the model with underlying semantic features of the language. After pre-training, the model is further trained in a **supervised manner** for a specific task, such as text generation, classification, or label prediction (for instance, identifying whether emails are spam or not). During this phase, the deeper encoded features of the pre-trained model are retained, but the trainable parameters of the output layer(s) are adjusted. For example, a feed-forward neural network can be added for binary classification of "spam" vs "not spam." These steps embody the concept of [Transfer Learning](https://machinelearningmastery.com/transfer-learning-for-deep-learning/), a powerful machine learning technique that involves applying knowledge learned from one task effectively to another task.
+>**Fine-tuning** is a powerful technique in machine learning that involves using models that have undergone **semi-supervised training** on extensive data from various sources. This process imparts the model with underlying semantic features of the language. After pre-training, the model is further trained in a **supervised manner** for a specific task, such as text generation, classification, or label prediction (for instance, identifying whether emails are spam or not). During this phase, the deeper encoded features of the pre-trained model are retained, but the trainable parameters of the output layer(s) are adjusted. For example, a feed-forward neural network followed by a softmax function can be added for binary classification of "spam" vs "not spam." These steps embody the concept of [Transfer Learning](https://machinelearningmastery.com/transfer-learning-for-deep-learning/), a powerful machine learning technique that involves applying knowledge learned from one task effectively to another task.
 
 ### Dataset Preparation
 
-Our initial step involves pre-processing the dataset to make it compatible with the pre-trained model that we are going to fine-tune according to our needs. One model that fits our task requirements is the [bert-base-multilingual-uncased](https://huggingface.co/bert-base-multilingual-uncased), based on the well-known [Bidirectional Encoder Representations from Transformers (BERT)](https://huggingface.co/docs/transformers/model_doc/bert) architecture. This model has previously undergone **semi-supervised training** on an extensive dataset comprising millions of entries from [Wikipedia](https://www.wikipedia.org/) in 102 different languages. During this pre-training phase, the model learns language rules and dependencies, setting the stage for its application in various **supervised training** scenarios. These applications include tasks like sentiment analysis, text generation, text sequence classification, and, in our specific case, identifying the major GO ontology categories (BP, CC, and MF) for the given text sequences.
+Our initial step involves pre-processing the dataset to make it compatible with the pre-trained model that we are going to fine-tune according to our needs. The BERT model has previously undergone **semi-supervised training** on an extensive dataset comprising millions of entries from [Wikipedia](https://www.wikipedia.org/) in 102 different languages. During this pre-training phase, the model learns language rules and dependencies, setting the stage for its application in various **supervised training** scenarios. These applications include tasks like sentiment analysis, text generation, text sequence classification, and, in our specific case, identifying the major GO ontology categories (BP, CC, and MF) for the given text sequences.
 
 To prepare the dataset for fine-tuning our model, we will perform the following tasks:
 
@@ -115,10 +111,17 @@ from obonet import read_obo
 
 go_graph = read_obo(home_dir.joinpath("data/go-basic.obo"))
 ```
+We can use the convenience function `plot_graph()` to visualize a subset of GO graph nodes and how they are connected. Here, I selected the nodes with the **highest degrees** to plot. For further details about nodes' degrees, please refer to my previous post [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA).
 
-The next task involves **extracting attributes from GO graph nodes and structuring them into a dataframe**. This process aims to facilitate the handling of text definitions. Additionally, we will include a column indicating the word count for each definition and visualize the distribution of these counts. This distribution will provide valuable insights for choosing optimal hyperparameters for tokenization (i.e., breaking the text into individual words or tokens) and fine-tuning our selected pre-trained model.
+<figure>
+  <p align="center">
+    <img src="graph_plot.png" alt="Transformer Basic Architecture" width="600px">
+  </p>
+</figure>
 
-We intend to extract only the textual description from the definition to input the model during the fine-tuning step. Therefore, we need to split the text using appropriate separators and employ indexes to access the desired information. Note that the nodes' attributes are stored in a tuple where the first element is the **GO term ID**, and the second is a **dictionary containing the respective attributes**:
+The next step involves **extracting information from nodes in the GO graph and structuring it into a dataframe** to streamline the handling of text definitions. We also obtain the number of words to choose the maximum length for input during training and evaluation. Shorter inputs reduce the training time and computational requirements a great deal.
+
+During this extraction process, we intend to focus on the textual description from the definitions, which is stored in a specific format. Each node in the GO graph has an ID and a dictionary containing various attributes, including the definition. For example:
 
 ```
 ('GO:0000001', {'name': 'mitochondrion inheritance', 'namespace': 'biological_process', 'def': '"The distribution of mitochondria, including the mitochondrial genome, into daughter cells after mitosis or meiosis, mediated by interactions between mitochondria and the cytoskeleton." [GOC:mcc, PMID:10873824, PMID:11389764]', 'synonym': ['"mitochondrial inheritance" EXACT []'], 'is_a': ['GO:0048308', 'GO:0048311']})
@@ -162,7 +165,7 @@ home_dir.joinpath("data/").mkdir(parents=True, exist_ok=True)
 go_df.to_csv(home_dir.joinpath("data/go_df.csv"), index=False)
 ```
 
-Before proceeding, we will make some modifications in our dataset: renaming the **definition** column to *text*, converting the **aspect** column to a **categorical data type** while mapping the aspects to numeric labels and keeping only these two columns for the downstream tasks:
+Before proceeding, we will make some modifications in our dataset: renaming the **definition** column to *text*, and converting the **aspect** column to a **categorical data type** while mapping the aspects to numeric labels and keeping only these two columns for the downstream tasks:
 
 ```python
 # loading saved dataframe with GO graph nodes' attributes
@@ -192,8 +195,6 @@ for code, aspect in enumerate(go_df.aspect.cat.categories):
 ```
 We can visualize the most common terms in the dataset by creating a [word cloud](http://amueller.github.io/word_cloud/). This visual representation is quite helpful in identifying the most frequently occurring words in a given text.
 
-Below, we can clearly see that life is all about a system of **controled catalysis**, and the information encoded in the genomes allows such organized system to be passed forward:
-
 ```python
 from wordcloud import WordCloud
 
@@ -214,7 +215,7 @@ plt.tight_layout(pad=1)
 plt.show()
 ```
 
-The result is quite nice:
+Below, we can clearly see that life is all about a system of **controled catalysis**, and the information encoded in the genomes allows such organized system to be passed forward:
 
 <figure>
   <p align="center">
