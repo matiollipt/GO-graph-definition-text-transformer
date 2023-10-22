@@ -445,3 +445,367 @@ trainer = Trainer(
 trainer.train()
 ```
 
+Here is the output stats of the epoch=3. Fine-tuning a pre-trained model usually requires just a few epochs to achieve high accuracy (ROC/AUC score = 0.986). This is because the deep features of language semantics were already learned during **pre-training**:
+
+```
+{'eval_loss': 0.08846566081047058, 'eval_accuracy': 0.986, 'eval_runtime': 6.3565, 'eval_samples_per_second': 157.319, 'eval_steps_per_second': 19.665, 'epoch': 3.0}
+{'train_runtime': 162.5061, 'train_samples_per_second': 36.922, 'train_steps_per_second': 4.615, 'train_loss': 0.11244293721516926, 'epoch': 3.0}
+```
+
+## Fine-Tuning with Native PyTorch
+
+Having explored the conveniences of Hugging Face's classes and models, it's valuable to delve into the internal workings of the training loop. Understanding these mechanisms equips you to make refinements that could enhance the model's performance or render it more lightweight for deployment.
+
+In this section, we will fine-tune our BERT model using native PyTorch. This approach entails implementing the training loop and creating the dataloader responsible for supplying batches of examples during training. By proceeding with the exercise of fine-tunning the model using native PyTorch, we gain a deeper understanding of the training process, fostering the ability to make tailored adjustments to achieve the desired model's performance in our classification task.
+
+But first we might want clean-up GPU's memory and delete the *model* and *trainer* objects to  release space and set the model to the initial state. Optionally, we can restart the notebook.
+
+```python
+del model
+del trainer
+torch.cuda.empty_cache()
+```
+
+### Dataloader
+
+To facilitate the training process, we need to configure the PyTorch [DataLoader](https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader), which combines the dataset structure and a sampler to provide batched chunks of training data to the model during training. The DataLoader is optimized for memory occupancy and speed, making it ideal for our needs. However, before we proceed, we must make some modifications to the tokenized dataset to align it with the input requirements of the model:
+
+1. Remove the *text* column from the dataset since the model does not accept text as input.
+2. Rename the *label* column to *labels* as the model is preset with this specific column name.
+3. Instruct the dataset to return PyTorch tensors.
+4. Select only a small portion of the dataset for fine-tuning the model, similar to what we did before.
+5. Instantiate the data loaders for training and test sets, shuffling the training samples but not the evaluation set. Also, batch sizes tends to be small during training and fine-tunning of such large models due to memory constraints.
+
+```python
+from torch.utils.data import DataLoader
+
+# remove the text column
+tokenized_dataset = tokenized_dataset.remove_columns(["text"])
+
+# rename the label column
+tokenized_dataset = tokenized_dataset.rename_column("label", "labels")
+
+# set torch tensors as the dataset output
+tokenized_dataset.set_format("torch")
+
+# create smaller training and test subsets
+small_train_dataset = tokenized_dataset["train"].shuffle(
+    seed=42).select(range(2000))
+small_eval_dataset = tokenized_dataset["test"].shuffle(
+    seed=42).select(range(1000))
+
+# configure torch data loader (eval set don't should be shuffled)
+train_loader = DataLoader(small_train_dataset, shuffle=True, batch_size=8)
+eval_loader = DataLoader(small_eval_dataset, batch_size=8)
+```
+
+This is the expected output, without the text input. The other features remains the same:
+
+```
+Train:
+ Dataset({
+    features: ['labels', 'input_ids', 'token_type_ids', 'attention_mask'],
+    num_rows: 2000
+})
+
+Test:
+ Dataset({
+    features: ['labels', 'input_ids', 'token_type_ids', 'attention_mask'],
+    num_rows: 1000
+})
+```
+
+### Optimizer and Learning Rate
+
+The [optimizer](https://pytorch.org/docs/stable/optim.html) adjusts the weights of the network during training to minimize the **loss** computed by a [loss function](https://pytorch.org/docs/stable/nn.html#loss-functions), i.e., minimize the discrepancy between the input and output of the model. Some optimization algorithms, such as [RMSProp](https://pytorch.org/docs/stable/generated/torch.optim.RMSprop.html#torch.optim.RMSprop), [Adam](https://pytorch.org/docs/stable/generated/torch.optim.Adam.html#torch.optim.Adam) and [AdamW](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html#torch.optim.AdamW), dynamically adapts the [learning rate]() of each network parameter based on the gradient descent previous magnitudes.
+
+The recommended optimizer to fine-tune BERT models is AdamW, a variant of Adam that implements weight decay to improve model's convergence and generalization power by preventing [overfitting](https://en.wikipedia.org/wiki/Overfitting). We will implement an [scheduler](https://huggingface.co/docs/transformers/main_classes/optimizer_schedules#transformers.get_scheduler) to adapt the learning rate along the training process.
+
+>Remember that **overfitting** happens when the model achieves high scores in predicting the training data output but has **little generalization power for unseen data**.
+
+First things first, let's instantiate the model with pre-trained weights and move it to the GPU memory:
+
+```python
+import torch
+from transformers import BertForSequenceClassification
+
+model = BertForSequenceClassification.from_pretrained(
+    "bert-base-multilingual-uncased", num_labels=3
+)
+
+# check GPU availability
+device = torch.device(
+    "cuda") if torch.cuda.is_available() else torch.device("cpu")
+model.to(device)
+```
+
+And now instantiate the optimizer and the learning rate scheduler:
+
+```python
+from torch.optim import AdamW
+from transformers import get_scheduler
+
+# implement optimizer with small learning rate (recommended for BERT)
+optimizer = AdamW(model.parameters(), lr=5e-5)
+
+# implement scheduler
+num_epochs = 3
+num_training_steps = num_epochs * len(train_loader)  # total number of batches
+
+lr_scheduler = get_scheduler(
+    name="linear",
+    optimizer=optimizer,
+    num_warmup_steps=0,
+    num_training_steps=num_training_steps,
+```
+
+### Training Loop
+
+Now we can train, I mean, fine-tune the model. The training loop controls the training process by allocating the batches of data to the model's device location and trigger the computation of the loss and optimization steps. In the training loop we also specify the number of epochs that we will be training our model.
+
+To monitor the training progress, we can set a progress bar using the handy [tqdm](https://github.com/tqdm/tqdm) library. We can just wrap any interable with tqdm that it will take care of the rest.
+
+```python
+# the total number of batches going through the model
+progress_bar = tqdm(range(num_training_steps))
+
+# activate the training mode
+model.train()
+
+# the loop itself
+for epoch in range(num_epochs):
+    for batch in train_loader:
+        # moves the data to the specified device (8 samples per batch)
+        batch = {key: value.to(device) for key, value in batch.items()}
+        # unpack batch dict and get the outputs to compute loss
+        outputs = model(**batch)
+        # extract the loss attribute from the output object
+        loss = outputs.loss
+        # compute gradients (derivatives)
+        loss.backward()
+        # update the weights using the computed gradients
+        optimizer.step()
+        # adjust the learning rate after each pass
+        lr_scheduler.step()
+        # reset the gradients because the weights are updated
+        # in each pass using only the gradients of the batch.
+        optimizer.zero_grad()
+        progress_bar.update(1)
+```
+
+### Evaluation
+
+To assess the performance of the trained model, it's essential to define the metric (just as we did when fine-tuning the model using the Trainer class) and create the evaluation loop. During evaluation, we provide batches to the model, accumulate predictions in the defined metric's attributes, and calculate the final score.
+
+Before evaluation, we switch the model to evaluation mode by invoking the model's `eval()` method. This action alters the behavior of certain layers that behave differently between training and evaluation, such as Dropout and Batch Normalization layers. It also informs the model not to compute gradients. Here's why:
+
+1. **Dropout**: Dropout randomly deactivates a fraction of neurons during training to prevent overfitting. In evaluation mode, this operation is unnecessary because we aim to predict all samples consistently.
+
+2. **Batch Normalization**: During training, each batch is normalized independently. In evaluation mode, we accumulate batches and perform normalization at the end considering the population statistics (mean and variance) learned during training.
+
+3. **Gradient Computation**: Since no weights are updated during evaluation mode, disabling gradient computation saves memory and processing time. We also use the PyTorch context manager `torch.no_grad()` to disable gradient computation in the evaluation loop.
+
+Setting the model to evaluation mode ensures that it behaves consistently and produces reliable predictions during the evaluation process.
+
+```python
+import evaluate
+
+# define metric
+metric = evaluate.load("accuracy")
+
+# set the model to evaluation mode
+model.eval()
+
+# evaluation loop
+for batch in eval_loader:
+    batch = {key: value.to(device) for key, value in batch.items()}
+
+    with torch.no_grad():
+        outputs = model(**batch)
+
+    logits = outputs.logits
+    predictions = torch.argmax(logits, dim=-1)
+    metric.add_batch(predictions=predictions, references=batch["labels"])
+
+print(f"Accuracy: {metric.compute()['accuracy']}")
+```
+```
+Accuracy: 0.989
+```
+
+## Using the Fine-Tunned Model for Predictions
+
+We've fine-tunned our model to understand the specific semantics of GO terms definitions regarding to which aspect the sentence is more likely to belong: Biological Process (BP), Cellular Component (CC) and Molecular Function (MF). An interesting possible application is using the model to classify any sentence regarding these aspects. One could ask: What is the predominantly GO aspect in a scientific text or sentence?
+
+We could determine the predominant GO aspect (biological process, celullar localization or molecular function) of single sentence and a paper abstract on molecular biology.
+
+Let's start by examining a single sentence sample. Remember that this is just a sample. Predictions make sense within the context they were fine-tuned for.
+
+>Just for the sake of curiosity, this is the **NASA's definition of life** when searching for life elsewhere in the Universe. It is the more concise we can think of.
+
+```python
+sample = "Life is a self-sustaining chemical system capable of Darwinian evolution."
+```
+
+As we did before, we tokenize the text sequence using the same parameters that we've used to configure the tokenizer for fine-tunning the model:
+
+```python
+# tokenize input
+inputs = tokenizer(
+    sample, max_length=100, truncation=True, padding=True, return_tensors="pt"
+).to(device)
+
+# switch model to evaluation mode
+model.eval()
+
+# get logits
+with torch.no_grad():
+    logits = model(**inputs).logits
+
+# calculate probabilities from logits
+probs = torch.nn.functional.softmax(logits, dim=1)
+prediction = torch.argmax(probs, dim=1).item()
+
+# print label probabiliteis
+print("Probabilities:")
+for code, aspect in enumerate(go_df.aspect.cat.categories):
+    print(f"{aspect}: {probs[0][code]:.3f}")
+
+print(f"\nPredicted Ontology: {go_df.aspect.cat.categories[prediction]}")
+```
+```
+Probabilities:
+biological_process: 0.868
+cellular_component: 0.107
+molecular_function: 0.025
+
+Predicted Ontology: biological_process
+```
+
+We can also make predictions for a longer input such as an article abstract, or even the whole article, but first we need to split the text into sequences. For this, we can use the [punkt](https://www.nltk.org/api/nltk.tokenize.punkt.html) module from Natural Language Toolkit (NLTK). The code below download the required punkt tokenizer data (only needed once):
+
+```python
+import nltk
+
+nltk.download("punkt")
+```
+The sample text is included in the repository, but you can use any other you like:
+
+```python
+# load sample text
+file = open(home_dir.joinpath("data/sample_text.txt"), "r").read()
+
+# split sample text into sentences and put into a dataframe
+sentences_list = nltk.tokenize.sent_tokenize(file)
+sentences_df = pd.DataFrame(columns=["sentence"], data=sentences_list)
+print(f"Number of sentences: {len(sentences_list)}")
+
+# switch to evaluation mode
+model.eval()
+
+# empty list to store temporary dictionaries with samples' predictions
+data_list = []
+
+# iterates over the sentences' list, tokenize, predict and append results
+for sample in sentences_list:
+    inputs = tokenizer(
+        sample,
+        max_length=100,
+        truncation=True,
+        padding=True,
+        return_tensors="pt",
+    ).to(device)
+
+    with torch.no_grad():
+        logits = model(**inputs)
+        prediction = torch.nn.functional.softmax(logits.logits, dim=1)
+
+    # get predictions out of GPU's memory, convert to list for appending
+    prediction_list = prediction.cpu().numpy().tolist()[0]
+
+    data_dict = {"sentence": sample}
+
+    # update results dictionary with predictions for every sentence
+    # zip() yields tuples containing the elements from the same indices
+    # in the iterables passed as parameters until the shortest iterable
+    # is exhausted.
+    data_dict.update(
+        {
+            category: prob
+            for category, prob in zip(go_df.aspect.cat.categories, prediction_list)
+        }
+    )
+
+    data_list.append(data_dict)
+
+# create dataframe with predictions
+probs_df = pd.DataFrame(data_list)
+
+# calculate mean for each aspect in the text
+probs_sample = probs_df.mean(numeric_only=True)
+
+
+probs_df = probs_df.style.format(
+    {
+        "biological_process": "{:.2%}",
+        "cellular_component": "{:.2%}",
+        "molecular_function": "{:.2%}",
+    }
+)
+
+# print / plot results
+probs_sample_results = probs_sample.map(lambda x: "{:.2%}".format(x)).sort_values(
+    ascending=False
+)
+
+# save results
+probs_df.to_excel(home_dir.joinpath("output/results.xls"), index=False)
+
+# visualize results
+print(probs_sample_results)
+
+plt.figure(figsize=(8, 8))
+plt.pie(probs_sample, labels=go_df.aspect.cat.categories.to_list(), autopct="%1.1f%%")
+plt.show()
+
+display(probs_df)
+```
+
+```
+Number of sentences: 11
+molecular_function    65.32%
+biological_process    21.12%
+cellular_component    13.55%
+```
+
+## What Are You Paying Attention To? Find Out with BERT Visualizer
+
+Some days, you stumble upon beautiful and useful tools. Today, that gem is [BertViz](https://github.com/jessevig/bertviz), an interactive tool for visualizing attention in transformer models. In the code below, we visualize the attention heads in a single layer:
+
+```python
+from bertviz import model_view, head_view
+
+# sample text
+sample = "Life is a self-sustaining chemical system capable of Darwinian evolution."
+
+# tokenize inputs
+inputs = tokenizer.encode(sample, padding=True,
+                          truncation=True, return_tensors="pt")
+
+# evaluate and return attentions and corresponding tokens
+outputs = model.cpu()(inputs, output_attentions=True)
+attention = outputs[-1]
+tokens = tokenizer.convert_ids_to_tokens(inputs[0])
+
+head_view(attention, tokens)
+```
+
+<figure>
+  <p align="center">
+    <img src="bertviz1.png" alt="Transformer Basic Architecture" width="400px">
+  </p>
+</figure>
+
+This is just a taste of **model interpretability**, a crucial topic in machine learning that aims to facilitate the human interpretation of results from machine learning models.
+
+In the **next post**, we'll dive into **text embeddings** and how to use what we've just learned to **automatically annotate newly discovered genes/proteins** according to Gene Ontology... 
