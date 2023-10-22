@@ -767,16 +767,19 @@ print(probs_sample_results)
 plt.figure(figsize=(8, 8))
 plt.pie(probs_sample, labels=go_df.aspect.cat.categories.to_list(), autopct="%1.1f%%")
 plt.show()
+``````
 
-display(probs_df)
-```
+<figure>
+  <p align="center">
+    <img src="sample_pie.png" alt="Transformer Basic Architecture" width="600px">
+  </p>
+</figure>
 
-```
-Number of sentences: 11
-molecular_function    65.32%
-biological_process    21.12%
-cellular_component    13.55%
-```
+<figure>
+  <p align="center">
+    <img src="sample_results.png" alt="Transformer Basic Architecture" width="800px">
+  </p>
+</figure>
 
 ## What Are You Paying Attention To? Find Out with BERT Visualizer
 
