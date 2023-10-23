@@ -1,10 +1,12 @@
 # Fine-Tuning Text Transformers with Gene Ontology Annotations: A Case Study
 
-This repository demonstrates the use of text definitions of Gene Ontology (GO) terms to fine-tune a pre-trained Large Language Model (LLM), specifically Bidirectional Encoder Representations from Transformers (BERT), based on the transformer architecture. The goal of this exercise is to leverage the LLM to categorize GO term definitions based on their alignment with the major GO ontologies: *Biological Process*, *Cellular Component*, and *Molecular Function*.
+This repository serves as an exercise to demonstrate the use of definitions of Gene Ontology (GO) terms to fine-tune a [pre-trained BERT-based Large Language Model (LLM)](https://huggingface.co/docs/transformers/model_doc/bert). The goal is to extract hidden dependencies among manually annotated GO term definitions, leveraging the model to categorize these definitions based on their alignment with the major GO ontologies: *Biological Process*, *Cellular Component*, and *Molecular Function*.
 
-In addition to utilizing GO term definitions as a "toy" dataset for practicing fine-tuning LLMs, this exercise aims to extract hidden dependencies among manually annotated GO term definitions. One potential application for the model is classifying molecular biology texts based on their emphasis on specific GO aspects.
+>**Fine-tuning** is a powerful technique in machine learning that involves using models that have undergone **semi-supervised training** on extensive data from various sources. This process imparts the model with underlying semantic features of the language. After pre-training, the model is further trained in a **supervised manner** for a specific task, such as text generation, classification, or label prediction (for instance, identifying whether emails are spam or not). During this phase, the deeper encoded features of the pre-trained model are retained, but the trainable parameters of the output layer(s) are adjusted. For example, a feed-forward neural network followed by a softmax function can be added for binary classification of "spam" vs "not spam." These steps embody the concept of [Transfer Learning](https://machinelearningmastery.com/transfer-learning-for-deep-learning/), a powerful machine learning technique that involves applying knowledge learned from one task effectively to another task.
 
-For further details about BERT, you can refer to the [official documentation](https://huggingface.co/docs/transformers/model_doc/bert).
+This post is also available for reading on [Medium](https://medium.com/@matiollipt/fine-tuning-text-transformers-with-gene-ontology-annotations-a-case-study-20d7531c40ea), where you can find additional insights and details.
+
+For further information about BERT, please refer to the [official documentation](https://huggingface.co/docs/transformers/model_doc/bert).
 
 ## Clone Repository
 
@@ -34,7 +36,7 @@ For further details about BERT, you can refer to the [official documentation](ht
 
 ## Introduction
 
-**Transformers** have gained significant attention in the Natural Language Processing (NLP) and machine learning landscape, contributing to the development of generative models like [chatGPT](https://chat.openai.com). Text transformer-based architectures are specifically engineered to analyze the dependencies between words (or *tokens*) in a text sequence, considering their positions to accuratelly capture the meaning of the text. This capability is instrumental in tasks such as text classification and ranking, as well as enabling generative models to generate new sentences in response to prompts.
+**Transformers** have gained significant attention in the Natural Language Processing (NLP) and machine learning landscape, contributing to the development of generative models like [chatGPT](https://chat.openai.com). Text transformer-based architectures are specifically engineered to **analyze the dependencies between words (or *tokens*) in a text sequence, considering their positions to accuratelly capture the meaning of the text**. This capability is instrumental in tasks such as text classification and ranking, as well as enabling generative models to generate new sentences in response to prompts.
 
 <figure>
   <p align="center">
@@ -46,7 +48,7 @@ The transformer architecture can be adapted and trained for more specific applic
 
 ## Automating Discovery In Life Sciences
 
-High-throughput [DNA sequencing](https://en.wikipedia.org/wiki/DNA_sequencing#High-throughput_sequencing_(HTS)_methods) has give us the power to sequence the entire genome of a species within a day. With the sequence on hands, we can deploy **computational models to identify and annotate genes** based on their characteristics, attributing correct functions and subcellular locations of the gene product given the gene sequence.
+High-throughput [DNA sequencing](https://en.wikipedia.org/wiki/DNA_sequencing#High-throughput_sequencing_(HTS)_methods) has give us the power to sequence the entire genome of a species within a day. With the sequence on hands, we can deploy **computational models to identify and annotate genes** based on their sequences, attributing correct functions and subcellular locations .
 
 For example, the [Critical Assessment of Protein Function Annotation (CAFA)](https://www.cell.com/trends/genetics/fulltext/S0168-9525(13)00166-2) competition engages the data science community in enhancing protein prediction by utilizing features derived from [Gene Ontology (GO)](https://geneontology.org/docs/ontology-documentation/).
 
@@ -60,13 +62,13 @@ The GO terms are organized into **three main aspects**:
 
 - <font color="grey">***Cellular Component (CC)***</font>: These terms specify the subcellular **locations** of gene products, including compartments like *chloroplast* or *nucleus*, as well as macromolecular complexes like *proteasome* or *ribosome*.
 
-- <font color="grey">***Biological Process (BP)***</font>: These terms delineate the biological **pathways** in which gene products are involved, ranging from 'DNA repair' and 'carbohydrate metabolic process' to overarching processes like *biosynthetic processes*.
+- <font color="grey">***Biological Process (BP)***</font>: These terms delineate the biological **pathways** in which gene products are involved, ranging from *DNA repair* and *carbohydrate metabolic process* to overarching processes like *biosynthetic processes*.
 
-The relationships between these terms are **hierarchical**, with **parent-child relationships** indicating broader and more specific terms, respectively. This hierarchical structure allows researchers to **annotate genes and gene products**, providing valuable information about their functions and roles in biological processes. For more information about how the GO graph is structured, please refer to my previous post [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA) and the [Gene Ontology reference](https://geneontology.org/docs/ontology-documentation). For now, it is essential to know that **each node representing a GO term has specific attributes**.
+The relationships between these terms are **hierarchical**, with **parent-child relationships** indicating broader and more specific terms, respectively. This hierarchical structure allows researchers to **annotate genes and gene products**, providing valuable information about their functions and roles in biological processes. For more information about how the GO graph is structured, please refer to my repository [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA) and the [Gene Ontology reference](https://geneontology.org/docs/ontology-documentation). For now, it is essential to know that **each node representing a GO term has specific attributes**.
 
 ## Extracting GO terms definitions
 
-A feature often overlooked when deploying the GO graph to assist in the prediction and classification of gene functions is the **textual definition of each GO term**. For example, the GO term ID [GO:0015986](https://www.ebi.ac.uk/QuickGO/term/GO:0015986) is defined as *"The transport of protons across the plasma membrane to generate an electrochemical gradient (proton-motive force) that powers ATP synthesis."*, along with other attributes shown below:
+A feature often overlooked when deploying the GO graph to assist in the prediction of gene function is the **textual definition of each GO term**. For example, the GO term ID [GO:0015986](https://www.ebi.ac.uk/QuickGO/term/GO:0015986) is defined as *"The transport of protons across the plasma membrane to generate an electrochemical gradient (proton-motive force) that powers ATP synthesis."*, along with other attributes shown below:
 
 ---
  **GO id**: GO:0015986
@@ -78,15 +80,13 @@ A feature often overlooked when deploying the GO graph to assist in the predicti
  - **is_a**: ['GO:0015986']}
 
  ---
+
 The nodes contain attributes describing the corresponding GO terms, and these are the essential ones that appear in every node:
 
 - ***name***: unique identifier of the term in a human-readable format
 - ***namespace***: one of the three major ontologies (MF, CC or BP) to which the term belongs
 - ***definition***: a short description of what the GO term means for humans. It can also contains references to publications defining the term (e.g. PMID:10873824).
 
-In this exercise, we use the GO terms' definitions to fine-tune a LLM as a text classifier of GO aspects.
-
->**Fine-tuning** is a powerful technique in machine learning that involves using models that have undergone **semi-supervised training** on extensive data from various sources. This process imparts the model with underlying semantic features of the language. After pre-training, the model is further trained in a **supervised manner** for a specific task, such as text generation, classification, or label prediction (for instance, identifying whether emails are spam or not). During this phase, the deeper encoded features of the pre-trained model are retained, but the trainable parameters of the output layer(s) are adjusted. For example, a feed-forward neural network followed by a softmax function can be added for binary classification of "spam" vs "not spam." These steps embody the concept of [Transfer Learning](https://machinelearningmastery.com/transfer-learning-for-deep-learning/), a powerful machine learning technique that involves applying knowledge learned from one task effectively to another task.
 
 ### Dataset Preparation
 
@@ -111,11 +111,11 @@ from obonet import read_obo
 
 go_graph = read_obo(home_dir.joinpath("data/go-basic.obo"))
 ```
-We can use the convenience function `plot_graph()` to visualize a subset of GO graph nodes and how they are connected. Here, I selected the nodes with the **highest degrees** to plot. For further details about nodes' degrees, please refer to my previous post [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA).
+We can use the custom function `plot_graph()` available in the notebook to visualize a subset of GO graph nodes and how they are connected. Here, I selected the nodes with the **highest degrees** to plot. For further details about nodes' degrees, please refer to my GitHub repository [GO-graph-EDA](https://github.com/matiollipt/GO-graph-EDA).
 
 <figure>
   <p align="center">
-    <img src="graph_plot.png" alt="Transformer Basic Architecture" width="600px">
+    <img src="graph_plot.png" alt="GO subgraph plot" width="600px">
   </p>
 </figure>
 
@@ -163,7 +163,21 @@ for idx, item in tqdm(enumerate(go_graph.nodes.items()), total=n_rows):
 # save dataframe
 home_dir.joinpath("data/").mkdir(parents=True, exist_ok=True)
 go_df.to_csv(home_dir.joinpath("data/go_df.csv"), index=False)
+
+# word count boxplot
+plt.figure(figsize=(2, 4))
+plt.title("Dataset Word Count")
+plt.boxplot(go_df.def_word_count.values)
+plt.ylabel("Word Count")
+plt.show()
 ```
+
+
+<figure>
+  <p align="center">
+    <img src="boxplot.png" alt="GO definitions length boxplot" width="200px">
+  </p>
+</figure>
 
 Before proceeding, we will make some modifications in our dataset: renaming the **definition** column to *text*, and converting the **aspect** column to a **categorical data type** while mapping the aspects to numeric labels and keeping only these two columns for the downstream tasks:
 
@@ -185,14 +199,18 @@ data = go_df[["definition", "label"]].copy()
 # rename definition column
 data.rename(columns={"definition": "text"}, inplace=True)
 
-print(f"Dataset dimensions: {data.shape}")
-display(data.head())
-
 # print label mapping for reference
 print("\nCode: label")
 for code, aspect in enumerate(go_df.aspect.cat.categories):
     print(f"{code}: {aspect}")
 ```
+```
+Code: label
+0: biological_process
+1: cellular_component
+2: molecular_function
+```
+
 We can visualize the most common terms in the dataset by creating a [word cloud](http://amueller.github.io/word_cloud/). This visual representation is quite helpful in identifying the most frequently occurring words in a given text.
 
 ```python
@@ -264,7 +282,7 @@ The **tokenization strategy must align with the chosen model**. This is crucial 
 
 In this context, we are employing the [BertTokenizerFast](https://huggingface.co/docs/transformers/model_doc/bert#transformers.BertTokenizerFast) with the tokenization strategy of the pre-trained model [bert-base-multilingual-uncased](https://huggingface.co/bert-base-multilingual-uncased) to convert text to lowercase and eliminate capitalization. Lowercase inputs typically result in a smaller number of tokens and tend to generalize better for unseen text sequences during production phase. However, we can later explore the possibility of using cased inputs to evaluate model performance.
 
-As indicated by the boxplot above, all GO term definitions conform to the input size requirements for fine-tuning (510 tokens). Nonetheless, we might consider limiting the input length to expedite the fine-tuning process. To proceed, we will create the dataset with training and test sets using Hugging Face's Dataset library. We will employ stratification to maintain the distribution of labels between datasets.
+As indicated by the **boxplot** above, all GO term definitions conform to the input size requirements for fine-tuning (510 tokens). Nonetheless, we might consider limiting the input length to expedite the fine-tuning process. To proceed, we will create the dataset with training and test sets using Hugging Face's Dataset library. We will employ stratification to maintain the distribution of labels between datasets.
 
 ```python
 from transformers import BertTokenizerFast
@@ -395,7 +413,7 @@ To configure the Trainer effectively, it's essential to set the **hyperparameter
 
 Given that the Trainer lacks an automatic performance evaluator during training, it's crucial to integrate metrics and pass them to the Trainer object through TrainingArguments.
 
-For our performance assessment, we will employ the ROC/AUC score. To facilitate this, we will create a function to convert **predictions** (probabilities ranging from 0 to 1, inclusive, obtained from the softmax function) into **logits** (the raw output from the model with unnormalized scores). This transformation aligns with the explanation provided in [this Hugging Face tutorial](https://huggingface.co/docs/transformers/training). By incorporating this custom metric, we can effectively evaluate the model's performance during the fine-tuning process.
+For our performance assessment, we will employ the ROC/AUC score. To facilitate this, we will create a function to convert **predictions** (probabilities ranging from 0 to 1, inclusive, obtained from the softmax function) into **logits** (the raw output from the model with unnormalized scores because all transformers models [return logits](https://huggingface.co/docs/transformers/training). By incorporating this custom metric, we can effectively evaluate the model's performance during the fine-tuning process.
 
 ```python
 from transformers import TrainingArguments
@@ -811,6 +829,6 @@ head_view(attention, tokens)
   </p>
 </figure>
 
-This is just a taste of **model interpretability**, a crucial topic in machine learning that aims to facilitate the human interpretation of results from machine learning models.
+This is just a taste of **model interpretability**, a crucial topic in machine learning that aims to facilitate the human interpretation of results from machine learning models. This concept is key to obtain insights on the inner mechanisms of the studied phenomena, allowing us to understand model's output. In future posts, we will delve a bit more in this hot topic.
 
-In the **next post**, we'll dive into **text embeddings** and how to use what we've just learned to **automatically annotate newly discovered genes/proteins** according to Gene Ontology... 
+In the **next post**, we'll dive into **text embeddings** and how to use what we've just learned to **automatically annotate newly discovered genes/proteins** according to Gene Ontology.
